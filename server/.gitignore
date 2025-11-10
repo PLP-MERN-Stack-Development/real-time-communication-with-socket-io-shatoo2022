@@ -1,0 +1,5 @@
+node_modules
+dotenv.local
+build
+.env
+.env.local

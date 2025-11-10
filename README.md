@@ -43,6 +43,26 @@ socketio-chat/
 3. Follow the setup instructions in the `Week5-Assignment.md` file
 4. Complete the tasks outlined in the assignment
 
+## Implementation Screenshots
+
+### Chat Interface
+![Chat Interface](screenshots/chat-interface.png)
+<!-- Add your chat interface screenshot here showing the messaging functionality and online users list -->
+
+### Login Screen
+![Login Screen](screenshots/login-screen.png)
+<!-- Add your login screen screenshot here showing the user authentication interface -->
+
+## Features Implemented
+
+- ✅ Real-time messaging using Socket.io
+- ✅ User authentication and presence
+- ✅ Private messaging functionality
+- ✅ Real-time typing indicators
+- ✅ Online users list with status
+- ✅ Clean and responsive UI
+- ✅ System notifications for user actions
+
 ## Files Included
 
 - `Week5-Assignment.md`: Detailed assignment instructions
