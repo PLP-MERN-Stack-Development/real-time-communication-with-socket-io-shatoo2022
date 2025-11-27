@@ -6,11 +6,17 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
-const mongoose = require('mongoose'); // 1. Import Mongoose
-const Message = require('./models/Message'); // 2. Import Message Model
+const mongoose = require('mongoose');
+const Message = require('./models/Message');
 
-// Load environment variables
+// Load environment variables (ensure path is correct)
 dotenv.config({ path: path.resolve(__dirname, '.env') });
+
+// --- Define CORS Origin ---
+// Use the CLIENT_URL environment variable (from Render) or default to local dev URL
+const CLIENT_ORIGIN = process.env.CLIENT_URL || 'http://localhost:5173';
+// --------------------------
+
 // --- MongoDB Connection ---
 const MONGODB_URI = process.env.MONGODB_URI;
 
@@ -22,22 +28,24 @@ mongoose.connect(MONGODB_URI)
 // Initialize Express app
 const app = express();
 const server = http.createServer(app);
+
+// Initialize Socket.io Server with Dynamic CORS Origin
 const io = new Server(server, {
   cors: {
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    origin: CLIENT_ORIGIN, // Uses the Vercel URL in production
     methods: ['GET', 'POST'],
     credentials: true,
   },
 });
 
 // Middleware
-app.use(cors());
+// Apply CORS middleware to Express routes (API routes)
+app.use(cors({ origin: CLIENT_ORIGIN })); 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Store connected users (still in-memory, as user list is transient)
 const users = {};
-// const messages = []; // 3. REMOVED: Messages are now stored in MongoDB
 const typingUsers = {};
 
 // Socket.io connection handler
@@ -47,11 +55,10 @@ io.on('connection', (socket) => {
   // Function to load historical messages
   const loadHistoricalMessages = async () => {
     try {
-      // Find the latest 100 messages, sorted by ID (or timestamp)
       const historicalMessages = await Message.find()
-        .sort({ id: -1 }) // Sort by latest first (using ID as a proxy for timestamp)
+        .sort({ id: -1 })
         .limit(100)
-        .sort({ id: 1 }); // Re-sort for ascending chronological order
+        .sort({ id: 1 });
         
       socket.emit('historical_messages', historicalMessages);
     } catch (error) {
@@ -67,39 +74,35 @@ io.on('connection', (socket) => {
     io.emit('user_joined', { username, id: socket.id });
     console.log(`${username} joined the chat`);
     
-    // 4. Load messages for the joining user
+    // Load messages for the joining user
     loadHistoricalMessages();
   });
 
   // Handle chat messages
-  socket.on('send_message', async (messageData) => { // 5. Use async
+  socket.on('send_message', async (messageData) => {
     const message = {
       ...messageData,
       id: Date.now(),
       sender: users[socket.id]?.username || 'Anonymous',
       senderId: socket.id,
-      timestamp: new Date(), // Using Date object now
+      timestamp: new Date(),
     };
     
     try {
-      // 6. Save the message to MongoDB
+      // Save the message to MongoDB
       const newMessage = new Message(message);
       const savedMessage = await newMessage.save();
       
-      // 7. Emit the message received from the database
+      // Emit the message received from the database
       io.emit('receive_message', savedMessage);
       
     } catch (error) {
       console.error('Error saving message:', error);
       socket.emit('error', 'Message failed to save.');
     }
-    
-    // messages.push(message); // REMOVED
-    // if (messages.length > 100) { messages.shift(); } // REMOVED
-    // io.emit('receive_message', message); // Replaced with io.emit(savedMessage)
   });
 
-  // Handle typing indicator (no change required here)
+  // Handle typing indicator
   socket.on('typing', (isTyping) => {
     if (users[socket.id]) {
       const username = users[socket.id].username;
@@ -114,8 +117,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Handle private messages (no database save needed for this example, 
-  // but if you wanted persistence, you'd add the save logic here too)
+  // Handle private messages
   socket.on('private_message', ({ to, message }) => {
     const messageData = {
       id: Date.now(),
@@ -149,7 +151,7 @@ io.on('connection', (socket) => {
 // API routes
 app.get('/api/messages', async (req, res) => {
   try {
-    // 8. Fetch messages from MongoDB
+    // Fetch messages from MongoDB
     const allMessages = await Message.find().sort({ timestamp: 1 });
     res.json(allMessages);
   } catch (error) {

@@ -1,13 +1,18 @@
 import { useState, useCallback, useRef } from 'react';
 import io from 'socket.io-client';
 
-const SERVER_URL = 'http://localhost:5000'; // Ensure this matches your server port
+// -----------------------------------------------------------------------
+// IMPORTANT: Use Vite's environment variable loading for deployment
+// It defaults to http://localhost:5000 in development if VITE_SOCKET_URL 
+// is not set, or uses the value from .env.local/Vercel.
+const SERVER_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
+// -----------------------------------------------------------------------
 
 export const useSocket = () => {
     const socketRef = useRef(null);
     const [isConnected, setIsConnected] = useState(false);
     
-    // 1. New State for Persistent Messages
+    // State for Persistent Messages (from MongoDB)
     const [messages, setMessages] = useState([]); 
     
     // States for connected users and typing indicators (in-memory)
@@ -30,14 +35,14 @@ export const useSocket = () => {
             console.log('Socket connected successfully.');
         });
 
-        // 2. NEW: Listener for Historical Messages (from MongoDB)
+        // Listener for Historical Messages (from MongoDB)
         newSocket.on('historical_messages', (historicalMessages) => {
             // Overwrite the state with history loaded from the database
             setMessages(historicalMessages); 
             console.log(`Loaded ${historicalMessages.length} historical messages.`);
         });
 
-        // 3. UPDATED: Listener for new messages (broadcasted after DB save)
+        // Listener for new messages (broadcasted after DB save)
         newSocket.on('receive_message', (newMessage) => {
             // Append the new, saved message to the state
             setMessages((prevMessages) => [...prevMessages, newMessage]);
@@ -68,8 +73,6 @@ export const useSocket = () => {
         if (socketRef.current && isConnected) {
             const messageData = {
                 message: messageContent,
-                // The server will use the socket.id to fetch the username, 
-                // but we pass content here.
             };
             socketRef.current.emit('send_message', messageData);
         }
@@ -85,8 +88,10 @@ export const useSocket = () => {
     // Function to disconnect (if needed)
     const disconnect = useCallback(() => {
         if (socketRef.current) {
+            // Manually emit 'disconnect' which triggers the server's cleanup
             socketRef.current.disconnect();
             socketRef.current = null;
+            setIsConnected(false);
         }
     }, []);
 
@@ -94,12 +99,11 @@ export const useSocket = () => {
         isConnected,
         connect,
         disconnect,
-        // Export the new message state
         messages, 
         sendMessage,
         userList,
         typingUsers,
         sendTypingStatus,
-        username, // Export the current username
+        username,
     };
 };
